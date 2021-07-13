@@ -1,0 +1,70 @@
+
+server:
+  port: 8080
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/db_second_kill?characterEncoding=utf-8&useSSL=false&serverTimezone=Hongkong
+    username: root
+    password: 123456
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      initial-size: 10
+      min-idle: 10
+      maxActive: 20
+      maxWait: 60000
+      timeBetweenEvictionRunsMillis: 60000
+      minEvictableIdleTimeMillis: 300000
+      validationQuery: SELECT 1 FROM DUAL
+      testWhileIdle: true
+      testOnBorrow: false
+      testOnReturn: false
+      poolPreparedStatements: true
+      filters: stat
+      maxPoolPreparedStatementPerConnectionSize: 20
+  #rabbitmq
+  rabbitmq:
+    virtual-host: /
+    host: 127.0.0.1
+    port: 5672
+    username: zjh
+    password: 123456
+    listener:
+      simple:
+        concurrency: 5
+        max-concurrency: 15
+        prefetch: 10
+
+#mq.env: javazjh
+##订单超时未支付自动失效-死信队列消息模型
+#mq:
+#  kill:
+#    item:
+#      succes:
+#        kill:
+#          dead:
+#            queue: ${mq.env}.kill.item.success.kill.dead.queue
+#            exchange: ${mq.env}.kill.item.success.kill.dead.exchange
+#            key: ${mq.env}.kill.item.success.kill.dead.routing.key
+#            real:
+#              queue: ${mq.env}.kill.item.success.kill.dead.real.queue
+#            prod:
+#              exchange: ${mq.env}.kill.item.success.kill.dead.prod.exchange
+#              routing:
+#                key: ${mq.env}.kill.item.success.kill.dead.prod.routing.key
+#          expire: 10000
+#
+#scheduler:
+#  expeire:
+#    orders:
+#      time: 30
+
+#mybatis
+mybatis:
+  config-location: classpath:mybatis-config.xml
+  checkConfigLocation: true
+  mapper-locations: classpath:mappers/*.xml
+
+
+
