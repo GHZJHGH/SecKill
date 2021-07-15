@@ -36,6 +36,14 @@ spring:
         max-concurrency: 15
         prefetch: 10
 
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    password:
+    redisson: redis://127.0.0.1:6379
+
+
+
 #mq.env: javazjh
 ##订单超时未支付自动失效-死信队列消息模型
 #mq:
