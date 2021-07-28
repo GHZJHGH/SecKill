@@ -7,9 +7,9 @@ public class BaseResponse<T> {
     private String msg;
     private T data;
 
-    public BaseResponse(Integer code,String msg,T data){
-        this.code = code;
-        this.msg = msg;
+    public BaseResponse(StatusCode code,T data){
+        this.code = code.getCode();
+        this.msg = code.getMsg();
         this.data = data;
     }
 

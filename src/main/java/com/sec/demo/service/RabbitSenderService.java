@@ -26,6 +26,12 @@ public class RabbitSenderService {
     private RabbitTemplate rabbitTemplate;
     @Autowired
     private ItemKillSuccessMapper itemKillSuccessMapper;
+
+    public void sendSeckillMessage(String message){
+        log.info("发送秒杀消息" + message);
+        rabbitTemplate.convertAndSend("seckillExchange","seckill.message",message);
+    }
+
     /**
      * 秒杀成功后生成抢购订单-发送信息入死信队列，等待着一定时间失效超时未支付的订单
      * @param orderCode

@@ -16,7 +16,7 @@ public class ItemKillSuccess {
 
     private String userId;
 
-    private Byte status;
+    private Integer status;
 
     private Date createTime;
 

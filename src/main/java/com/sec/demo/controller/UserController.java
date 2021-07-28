@@ -87,4 +87,11 @@ public class UserController {
         SecurityUtils.getSubject().logout();
         return "login";
     }
+
+    @RequestMapping(value = "add",method = RequestMethod.GET)
+    public void addUser(){
+        for (int i = 2; i < 1000; i++) {
+            userMapper.insertUser2(i,"zjh"+i,"123");
+        }
+    }
 }

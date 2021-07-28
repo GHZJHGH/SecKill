@@ -1,5 +1,6 @@
 package com.sec.demo.service.Impl;
 
+import com.sec.demo.dto.GoodsForKill;
 import com.sec.demo.entity.ItemKill;
 import com.sec.demo.entity.ItemKillSuccess;
 import com.sec.demo.enums.SysConstant;
@@ -12,10 +13,12 @@ import org.joda.time.DateTime;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.DigestUtils;
+import org.springframework.util.StringUtils;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -28,7 +31,7 @@ public class KillServiceImpl implements KillService {
     @Autowired
     private RabbitSenderService rabbitSenderService;
     @Autowired
-    private StringRedisTemplate stringRedisTemplate;
+    private RedisTemplate redisTemplate;
     @Autowired
     private RedissonClient redissonClient;
 
@@ -74,40 +77,33 @@ public class KillServiceImpl implements KillService {
 
     //redis分布式锁
     @Override
-    public Boolean KillItemV3(Integer killId, Integer userId) throws Exception {
+    public Boolean KillItemV3(ItemKill itemKill, Integer userId) throws Exception {
+        int Itemid = itemKill.getItemId();
 
-        //借助Redis的原子操作实现分布式锁
-        ValueOperations valueOperations = stringRedisTemplate.opsForValue();
-        //设置redis的key，key由killid和userid组成
-        final String key = new StringBuffer().append(killId).append(userId).toString();
-        //设置redis的value
-        final String value = String.valueOf(snowFlake.nextId());
-        //尝试获取锁
-        Boolean result=valueOperations.setIfAbsent(key,value);
-
-        if (result){
-            stringRedisTemplate.expire(key,30, TimeUnit.SECONDS);
-            //判断当前用户是否抢购过该商品
-            if (itemKillSuccessMapper.countByKillUserId(killId,userId)<=0){
-                //获取商品详情
-                ItemKill itemKill=itemKillMapper.selectByidV2(killId);
-                if (itemKill!=null&&itemKill.getCanKill()==1 && itemKill.getTotal()>0){
-                    int res=itemKillMapper.updateKillItemV2(killId);
-                    if (res>0){
-                        commonRecordKillSuccessInfo(itemKill,userId);
-                        return true;
-                    }
-                }
-            }else {
-                System.out.println("您已经抢购过该商品");
+        //更新数据库库存
+        int res=itemKillMapper.updateKillItemV2(Itemid);
+        if (res>0){
+            //更新完后是否还有库存
+            ItemKill i = itemKillMapper.selectByid(Itemid);
+            if (i.getTotal()<1){
+                redisTemplate.opsForValue().set("GoodsEmpty"+Itemid,"0");
             }
-            if (value.equals(valueOperations.get(key).toString())){
-                stringRedisTemplate.delete(key);
+
+            redisTemplate.setEnableTransactionSupport(true);
+            //判断是否已抢购
+            if (itemKillSuccessMapper.countByKillUserId(Itemid,userId)<=0){
+                //将订单插入数据库，并送入死信队列
+                boolean result = commonRecordKillSuccessInfo(itemKill,userId);
+                System.out.println(result);
+                return result;
+            }else {
+                redisTemplate.opsForValue().set(String.valueOf("重复"+userId+Itemid),"1",60,TimeUnit.SECONDS);
+                return false;
             }
         }
-
         return false;
     }
+
 
     //redisson分布式锁
     @Override
@@ -139,24 +135,74 @@ public class KillServiceImpl implements KillService {
         return result;
     }
 
-    private void commonRecordKillSuccessInfo(ItemKill itemKill,Integer userId){
+    @Override
+    public List<GoodsForKill> searchKill() {
+        return itemKillMapper.selectKill();
+    }
+
+    //获取秒杀结果
+    @Override
+    public int getResult(Integer userid, Integer killid) {
+        int i = itemKillSuccessMapper.countByKillUserId(killid,userid);
+        System.out.println(i+"and"+userid+":"+killid);
+        if (i>0){
+            return 0;
+        }else if (redisTemplate.hasKey("GoodsEmpty"+killid)){
+            return -1;
+        }
+        return 1;
+    }
+
+    @Override
+    public String createPath(Object uid, int goodsId) {
+//        //生成从ASCII 32到126组成的随机字符串 （包括符号）
+//        String salt = RandomStringUtils.randomAscii(12);
+
+        String str = DigestUtils.md5DigestAsHex((String.valueOf(goodsId)).getBytes());
+        //System.out.println(str);
+        redisTemplate.opsForValue().set("seckillPath:"+uid+":"+goodsId,str,60,TimeUnit.SECONDS);
+        return str;
+    }
+
+    @Override
+    public boolean checkPath(int userId, int killId, String path) {
+        if (userId<0||killId<0|| StringUtils.isEmpty(path)){
+            return false;
+        }
+        String redisPath = (String) redisTemplate.opsForValue().get("seckillPath:" + userId + ":" + killId);
+        return path.equals(redisPath);
+    }
+
+    @Override
+    public boolean checkCaptcha(Object uid, Integer goodsId, String captcha) {
+        if (StringUtils.isEmpty(captcha)||uid==null||goodsId<0){
+            return false;
+        }
+        //System.out.println(uid+":"+goodsId);
+        String redisCaptcha = (String) redisTemplate.opsForValue().get("captcha:" + uid + ":" + goodsId);
+        //System.out.println(captcha+"and"+redisCaptcha);
+        return captcha.equals(redisCaptcha);
+    }
+
+    private boolean commonRecordKillSuccessInfo(ItemKill itemKill,Integer userId){
         ItemKillSuccess entity = new ItemKillSuccess();
         String orderNo=String.valueOf(snowFlake.nextId());
         entity.setCode(orderNo);
         entity.setItemId(itemKill.getItemId());
         entity.setKillId(itemKill.getId());
         entity.setUserId(userId.toString());
-        entity.setStatus(SysConstant.OrderStatus.SuccessNotPayed.getCode().byteValue());
+        entity.setStatus(SysConstant.OrderStatus.SuccessNotPayed.getCode());
         entity.setCreateTime(DateTime.now().toDate());
 
-        if (itemKillSuccessMapper.countByKillUserId(itemKill.getId(),userId) <= 0){
-            int res=itemKillSuccessMapper.insertSelective(entity);
-            if(res>0){
-                //处理抢购成功后的流程
-                //将订单送入死信队列
-                rabbitSenderService.sendKillSuccessOrderExpireMsg(orderNo);
-            }
+        //数据库添加订单
+        int res=itemKillSuccessMapper.insertSelective(entity);
+        if(res>0){
+            //处理抢购成功后的流程
+            //将订单送入死信队列
+            rabbitSenderService.sendKillSuccessOrderExpireMsg(orderNo);
+            return true;
         }
+        return false;
     }
 
 }

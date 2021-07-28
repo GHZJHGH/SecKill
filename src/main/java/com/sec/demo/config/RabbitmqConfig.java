@@ -24,6 +24,24 @@ public class RabbitmqConfig {
     @Autowired
     private SimpleRabbitListenerContainerFactoryConfigurer factoryConfigurer;
 
+    private static final String QUEUE = "seckillQueue";
+    private static final String EXCHANGE = "seckillExchange";
+
+    //下单
+    @Bean
+    public Queue queue(){
+        return new Queue(QUEUE);
+    }
+    @Bean
+    public TopicExchange topicExchange(){
+        return new TopicExchange(EXCHANGE);
+    }
+    @Bean
+    public Binding binding(){
+        return BindingBuilder.bind(queue()).to(topicExchange()).with("seckill.#");
+    }
+
+
     //单一消费者
     @Bean(name = "singleListenerContainer")
     public SimpleRabbitListenerContainerFactory listenerContainer(){
@@ -70,6 +88,7 @@ public class RabbitmqConfig {
             }
         });
         template.setReturnCallback(new RabbitTemplate.ReturnCallback() {
+            @Override
             public void returnedMessage(Message message, int replyCode, String replyText, String exchange, String routingKey) {
                 System.out.println("消息丢失：exchage("+exchange+"),route("+routingKey+"),replyCode("+replyCode+replyText+"),message("+message+")");
             }
@@ -114,4 +133,50 @@ public class RabbitmqConfig {
     public Binding successKillDeadBinding(){
         return BindingBuilder.bind(successKillRealQueue()).to(successKillDeadExchange()).with(env.getProperty("mq.kill.item.success.kill.dead.routing.key"));
     }
+
+
+//    //测试fanout模式
+//    @Bean
+//    public Queue queue01(){
+//        return new Queue("queue_fanout01");
+//    }
+//    @Bean
+//    public Queue queue02(){
+//        return new Queue("queue_fanout02");
+//    }
+//    @Bean
+//    public FanoutExchange fanoutExchange(){
+//        return new FanoutExchange("fanout_exchange");
+//    }
+//    @Bean
+//    public Binding binding01(){
+//        return BindingBuilder.bind(queue01()).to(fanoutExchange());
+//    }
+//    @Bean
+//    public Binding binding02(){
+//        return BindingBuilder.bind(queue02()).to(fanoutExchange());
+//    }
+//
+//    //测试Direct模式
+//    @Bean
+//    public Queue queue_direct01(){
+//        return new Queue("queue_direct01");
+//    }
+//    @Bean
+//    public Queue queue_direct02(){
+//        return new Queue("queue_direct02");
+//    }
+//    @Bean
+//    public DirectExchange directExchange(){
+//        return new DirectExchange("direct_exchange");
+//    }
+//
+//    @Bean
+//    public Binding binding_direct01(){
+//        return BindingBuilder.bind(queue_direct01()).to(directExchange()).with("red");
+//    }
+//    @Bean
+//    public Binding binding_direct02(){
+//        return BindingBuilder.bind(queue_direct02()).to(directExchange()).with("green");
+//    }
 }

@@ -16,7 +16,6 @@ public class RedissonConfig {
 
     @Bean
     public RedissonClient redissonClient(){
-        System.out.println(environment.getProperty("spring.redis.redisson"));
         Config config = new Config();
         config.useSingleServer()
                 .setAddress(environment.getProperty("spring.redis.redisson"));

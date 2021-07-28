@@ -13,4 +13,7 @@ public interface UserMapper {
 
     @Insert("insert into user(user_name,password) values (#{username},#{password})")
     int insertUser(@Param("username")String username,@Param("password")String password);
+
+    @Insert("insert into user(id,user_name,password) values (#{id},#{username},#{password})")
+    int insertUser2(@Param("id")int id,@Param("username")String username,@Param("password")String password);
 }

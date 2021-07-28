@@ -1,6 +1,7 @@
 package com.sec.demo.mapper;
 
 
+import com.sec.demo.dto.GoodsForKill;
 import com.sec.demo.entity.ItemKill;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
@@ -25,6 +26,11 @@ public interface ItemKillMapper {
             "on a.item_id = b.id\n" +
             "where a.is_active=1;")
     List<ItemKill> selectAll();
+
+    @Select("SELECT item_id,total \n" +
+            "FROM item_kill\n" +
+            "WHERE is_active = 1 AND total>0")
+    List<GoodsForKill> selectKill();
 
     @Select("select \n" +
             "a.*,\n" +
